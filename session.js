@@ -27,7 +27,7 @@ const VoxForgeSession = (() => {
   let timeLeft       = 0;
   let recognition    = null;   // Web Speech API instance
   let currentTranscript = '';  // live transcript for current question
-  let audioQueue     = [];     // pre-fetched Murf audio blobs
+  let audioQueue     = [];     // pre-fetched audio: {blob, text}
   let sessionLocked  = false;  // prevent double-triggers
 
   /* ── Callbacks the HTML hooks into ── */
@@ -81,7 +81,7 @@ const VoxForgeSession = (() => {
     } catch (e) {
       // Non-fatal — fall back to no audio
       console.warn('Murf audio prefetch failed, continuing without audio:', e.message);
-      audioQueue = new Array(questions.length).fill(null);
+      audioQueue = questions.map(q => ({blob: null, text: q.text}));
     }
 
     on.status('Session ready. Starting now...');
@@ -191,24 +191,24 @@ Do not include preamble, pleasantries, or numbering in the questions themselves.
 
   async function prefetchAudio(questions) {
     const { voiceId, langCode } = config;
-    const blobs = [];
+    const audioItems = [];
 
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
       try {
         on.status(`Preparing voice audio... (${i + 1}/${questions.length})`);
         const blob = await fetchMurfAudio(q.text, voiceId, langCode);
-        blobs.push(blob);
+        audioItems.push({blob, text: q.text});
       } catch (err) {
         console.warn('Murf audio prefetch error:', err.message);
-        blobs.push(null);
+        audioItems.push({blob: null, text: q.text});
       }
 
-      // mild delay between Murf requests to reduce 429 risk
+      // mild delay
       await new Promise(resolve => setTimeout(resolve, 350));
     }
 
-    return blobs;
+    return audioItems;
   }
 
   async function fetchMurfAudio(text, voiceId, langCode) {
@@ -244,15 +244,57 @@ Do not include preamble, pleasantries, or numbering in the questions themselves.
     throw new Error('No audioFile in Murf response');
   }
 
-  function playAudioBlob(blob) {
-    if (!blob) return Promise.resolve();
-    return new Promise((resolve) => {
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audio.onended = () => { URL.revokeObjectURL(url); resolve(); };
-      audio.onerror = () => { resolve(); }; // non-fatal
-      audio.play().catch(() => resolve());
-    });
+  function playAudioBlob(audioItem) {
+    if (!audioItem) return Promise.resolve();
+    if (audioItem.blob) {
+      return new Promise((resolve) => {
+        const url = URL.createObjectURL(audioItem.blob);
+        const audio = new Audio(url);
+        audio.onended = () => { URL.revokeObjectURL(url); resolve(); };
+        audio.onerror = () => { resolve(); };
+        audio.play().catch(() => resolve());
+      });
+    } else {
+      // Use Web Speech API
+      return new Promise((resolve) => {
+        const utterance = new SpeechSynthesisUtterance(audioItem.text);
+        
+        // Set language
+        utterance.lang = config.langCode || 'en-US';
+        
+        // Set voice based on language and selected voice name
+        const voices = speechSynthesis.getVoices();
+        let selectedVoice = null;
+        
+        // First try to find voice matching selected name
+        if (config.voiceName) {
+          selectedVoice = voices.find(v => v.name.toLowerCase().includes(config.voiceName.toLowerCase()));
+        }
+        
+        // Then try to find voice matching language
+        if (!selectedVoice) {
+          selectedVoice = voices.find(v => v.lang === utterance.lang);
+        }
+        
+        // If not found, try partial match
+        if (!selectedVoice) {
+          selectedVoice = voices.find(v => v.lang.startsWith(utterance.lang.split('-')[0]));
+        }
+        
+        // If still not found, use default
+        if (!selectedVoice && voices.length > 0) {
+          selectedVoice = voices[0];
+        }
+        
+        if (selectedVoice) {
+          utterance.voice = selectedVoice;
+        }
+        
+        utterance.onend = resolve;
+        utterance.onerror = resolve;
+        speechSynthesis.speak(utterance);
+      });
+    }
   }
 
   /* ═══════════════════
