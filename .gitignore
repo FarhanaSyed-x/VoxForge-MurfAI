@@ -1,0 +1,3 @@
+# keep local secrets out of git
+keys.env
+config.js

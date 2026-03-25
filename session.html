@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>VoxForge — Session</title>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;700;900&family=Space+Mono:wght@400;700&family=Barlow:ital,wght@0,300;0,400;0,500;1,300;1,400&display=swap" rel="stylesheet"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:#010106;
+  --surface:#07060f;
+  --gold:#f0c040;--gold2:#ffe066;--gg:rgba(240,192,64,0.3);
+  --red:#ff3333;--red2:#ff6666;--rg:rgba(255,51,51,0.3);
+  --green:#2ecc71;--amber:#f0a020;
+  --cream:#ffffff;--text2:#7a7570;--text3:#2a2620;
+  --mono:'Space Mono',monospace;--display:'Unbounded',sans-serif;--body:'Barlow',sans-serif;
+  --clarity:#4a9eff;--thoughtfulness:#a78bfa;--honesty:#f0c040;--adaptability:#2ecc71;
+}
+html{height:100%;background:var(--bg);}
+body{min-height:100%;overflow-x:hidden;overflow-y:auto;cursor:none;background:var(--bg);}
+
+/* CURSOR */
+#cur{position:fixed;width:8px;height:8px;background:var(--red);border-radius:50%;pointer-events:none;z-index:9999;transform:translate(-50%,-50%);box-shadow:0 0 16px var(--red),0 0 32px var(--rg);}
+#cur.h{width:18px;height:18px;background:transparent;border:2px solid var(--red);}
+#crng{position:fixed;width:36px;height:36px;pointer-events:none;z-index:9998;transform:translate(-50%,-50%);}
+#crng svg{animation:spin 5s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* SCANLINES + NOISE */
+body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");opacity:0.7;}
+body::after{content:'';position:fixed;inset:0;z-index:199;pointer-events:none;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.015) 2px,rgba(0,0,0,0.015) 3px);}
+
+/* VIGNETTE */
+.vignette{position:fixed;inset:0;z-index:1;pointer-events:none;background:radial-gradient(ellipse at center,transparent 40%,rgba(0,0,0,0.85) 100%);}
+
+/* BLOOD GLOW — intensifies as timer drops */
+.blood-glow{position:fixed;inset:0;z-index:0;pointer-events:none;border-radius:0;box-shadow:inset 0 0 120px rgba(255,30,30,0);transition:box-shadow 1s ease;}
+.blood-glow.warn{box-shadow:inset 0 0 120px rgba(255,30,30,0.08);}
+.blood-glow.danger{box-shadow:inset 0 0 180px rgba(255,30,30,0.22);animation:bloodPulse 1s ease-in-out infinite;}
+@keyframes bloodPulse{0%,100%{box-shadow:inset 0 0 180px rgba(255,30,30,0.18);}50%{box-shadow:inset 0 0 240px rgba(255,30,30,0.35);}}
+
+canvas{position:fixed;inset:0;pointer-events:none;z-index:2;}
+
+/* NAV */
+nav{position:fixed;top:0;left:0;right:0;z-index:50;padding:16px 40px;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(180deg,rgba(1,1,6,0.98) 0%,transparent);}
+.nav-logo{font-family:var(--display);font-size:13px;font-weight:900;color:var(--cream);letter-spacing:0.1em;opacity:0.6;}
+.nav-session-info{display:flex;align-items:center;gap:16px;}
+.nav-pill{font-family:var(--mono);font-size:8px;letter-spacing:0.14em;text-transform:uppercase;padding:4px 12px;border-radius:20px;border:1px solid rgba(255,255,255,0.08);color:var(--text2);}
+.nav-pill.red{border-color:rgba(255,51,51,0.3);color:var(--red);background:rgba(255,51,51,0.06);}
+.nav-pill.gold{border-color:rgba(240,192,64,0.3);color:var(--gold);background:rgba(240,192,64,0.06);}
+
+/* MAIN */
+main{position:relative;z-index:10;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:80px 24px 60px;}
+
+/* ══ LOADING SCREEN ══ */
+#loadingScreen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:80vh;gap:20px;width:100%;}
+.load-orb{width:80px;height:80px;border-radius:50%;border:1.5px solid rgba(240,192,64,0.3);display:flex;align-items:center;justify-content:center;position:relative;animation:loadBreath 2s ease-in-out infinite;}
+.load-orb::before{content:'';position:absolute;inset:-8px;border-radius:50%;border:1px dashed rgba(240,192,64,0.12);animation:spin 6s linear infinite;}
+@keyframes loadBreath{0%,100%{box-shadow:0 0 40px rgba(240,192,64,0.1);}50%{box-shadow:0 0 80px rgba(240,192,64,0.25);}}
+.load-status{font-family:var(--mono);font-size:10px;color:var(--text2);letter-spacing:0.2em;text-transform:uppercase;text-align:center;}
+.load-bar-wrap{width:280px;height:2px;background:rgba(255,255,255,0.05);border-radius:1px;overflow:hidden;}
+.load-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--gold),var(--gold2));border-radius:1px;transition:width 0.4s ease;box-shadow:0 0 8px var(--gold);}
+
+/* ══ SESSION SCREEN ══ */
+#sessionScreen{display:none;flex-direction:column;align-items:center;width:100%;max-width:700px;gap:0;}
+
+/* QUESTION COUNTER */
+.q-counter{font-family:var(--mono);font-size:9px;color:var(--text2);letter-spacing:0.22em;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:10px;align-self:flex-start;}
+.q-counter-num{font-size:22px;font-family:var(--display);font-weight:900;color:var(--cream);letter-spacing:-0.02em;line-height:1;}
+.q-counter-total{font-size:13px;color:var(--text2);}
+
+/* PERSONA STRIP */
+.persona-strip{align-self:stretch;display:flex;align-items:center;gap:10px;margin-bottom:20px;padding:10px 14px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:8px;}
+.persona-name{font-family:var(--mono);font-size:9px;color:var(--text2);letter-spacing:0.12em;text-transform:uppercase;}
+.persona-level{font-family:var(--mono);font-size:8px;padding:2px 8px;border-radius:10px;margin-left:auto;}
+.persona-level.high{background:rgba(255,51,51,0.12);color:var(--red);border:1px solid rgba(255,51,51,0.2);}
+.persona-level.medium{background:rgba(240,160,32,0.12);color:var(--amber);border:1px solid rgba(240,160,32,0.2);}
+.persona-level.low{background:rgba(46,204,113,0.12);color:var(--green);border:1px solid rgba(46,204,113,0.2);}
+
+/* TIMER RING */
+.timer-wrap{position:relative;display:flex;align-items:center;justify-content:center;margin-bottom:24px;}
+.timer-svg{transform:rotate(-90deg);}
+.timer-track{fill:none;stroke:rgba(255,255,255,0.05);stroke-width:3;}
+.timer-arc{fill:none;stroke-width:3;stroke-linecap:round;transition:stroke-dashoffset 1s linear,stroke 0.5s ease;}
+.timer-num{position:absolute;font-family:var(--display);font-size:36px;font-weight:900;color:var(--cream);letter-spacing:-0.03em;transition:color 0.5s;}
+.timer-num.warn{color:var(--amber);}
+.timer-num.danger{color:var(--red);animation:timerFlash 0.5s ease-in-out infinite;}
+@keyframes timerFlash{0%,100%{opacity:1;}50%{opacity:0.5;}}
+.timer-label{position:absolute;bottom:-18px;font-family:var(--mono);font-size:7px;color:var(--text2);letter-spacing:0.18em;text-transform:uppercase;}
+
+/* QUESTION CARD */
+.question-card{align-self:stretch;background:rgba(8,7,14,0.95);border:1px solid rgba(255,255,255,0.07);border-top:2px solid rgba(240,192,64,0.35);border-radius:0 0 14px 14px;padding:24px 26px;margin-bottom:20px;position:relative;overflow:hidden;}
+.question-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(240,192,64,0.5) 40%,rgba(255,224,102,0.7) 60%,transparent);background-size:200% 100%;animation:sweep 3s ease-in-out infinite;}
+@keyframes sweep{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
+.question-eyebrow{font-family:var(--mono);font-size:8px;color:var(--gold);letter-spacing:0.22em;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+.q-dot{width:6px;height:6px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);animation:qdot 1.6s ease-in-out infinite;}
+@keyframes qdot{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.4;transform:scale(0.5);}}
+.question-text{font-family:var(--body);font-size:18px;font-weight:400;color:var(--cream);line-height:1.6;letter-spacing:-0.01em;}
+
+/* MIC + TRANSCRIPT */
+.mic-area{align-self:stretch;background:rgba(5,4,10,0.98);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:18px 20px;margin-bottom:20px;min-height:100px;position:relative;overflow:hidden;}
+.mic-area.listening{border-color:rgba(255,51,51,0.25);box-shadow:0 0 0 1px rgba(255,51,51,0.1),inset 0 0 40px rgba(255,51,51,0.03);}
+.mic-area.locked{border-color:rgba(46,204,113,0.2);opacity:0.75;}
+.mic-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.mic-indicator{width:8px;height:8px;border-radius:50%;background:var(--text3);transition:background 0.3s,box-shadow 0.3s;}
+.mic-indicator.on{background:var(--red);box-shadow:0 0 10px var(--red);animation:micPulse 1s ease-in-out infinite;}
+.mic-indicator.done{background:var(--green);box-shadow:0 0 8px var(--green);animation:none;}
+@keyframes micPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.4);}}
+.mic-label{font-family:var(--mono);font-size:8px;letter-spacing:0.16em;text-transform:uppercase;color:var(--text2);}
+.mic-waveform{display:flex;align-items:center;gap:3px;margin-bottom:10px;height:20px;}
+.wave-bar{width:3px;border-radius:2px;background:var(--red);opacity:0.6;animation:none;transition:height 0.1s;}
+.mic-area.listening .wave-bar{animation:wave var(--d,0.8s) ease-in-out infinite;}
+@keyframes wave{0%,100%{height:4px;}50%{height:var(--h,16px);}}
+.transcript-text{font-family:var(--body);font-size:14px;color:var(--cream);line-height:1.65;min-height:40px;font-style:italic;opacity:0.85;}
+.transcript-text.empty{color:var(--text2);font-style:italic;font-size:13px;}
+.transcript-text .interim{color:var(--text2);}
+.locked-badge{position:absolute;top:14px;right:14px;font-family:var(--mono);font-size:7px;letter-spacing:0.14em;text-transform:uppercase;padding:3px 10px;border-radius:10px;background:rgba(46,204,113,0.1);color:var(--green);border:1px solid rgba(46,204,113,0.2);}
+
+/* LIVE SCORES */
+.scores-area{align-self:stretch;display:none;background:rgba(5,4,10,0.98);border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:18px 20px;margin-bottom:20px;animation:fadeUp 0.5s cubic-bezier(0.16,1,0.3,1) forwards;}
+.scores-area.visible{display:block;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:translateY(0);}}
+.scores-header{font-family:var(--mono);font-size:8px;color:var(--text2);letter-spacing:0.18em;text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.scores-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+@media(max-width:480px){.scores-grid{grid-template-columns:1fr;}}
+.score-item{background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:12px 14px;}
+.score-trait{font-family:var(--mono);font-size:8px;letter-spacing:0.14em;text-transform:uppercase;margin-bottom:6px;}
+.score-trait.clarity{color:var(--clarity);}
+.score-trait.thoughtfulness{color:var(--thoughtfulness);}
+.score-trait.honesty{color:var(--honesty);}
+.score-trait.adaptability{color:var(--adaptability);}
+.score-bar-wrap{height:4px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;margin-bottom:5px;}
+.score-bar{height:100%;border-radius:2px;width:0%;transition:width 1s cubic-bezier(0.16,1,0.3,1);}
+.score-bar.clarity{background:var(--clarity);box-shadow:0 0 6px var(--clarity);}
+.score-bar.thoughtfulness{background:var(--thoughtfulness);box-shadow:0 0 6px var(--thoughtfulness);}
+.score-bar.honesty{background:var(--honesty);box-shadow:0 0 6px var(--honesty);}
+.score-bar.adaptability{background:var(--adaptability);box-shadow:0 0 6px var(--adaptability);}
+.score-val{font-family:var(--display);font-size:18px;font-weight:900;color:var(--cream);}
+.score-val span{font-size:10px;color:var(--text2);font-family:var(--mono);}
+.score-feedback{grid-column:1/-1;padding:10px 14px;background:rgba(240,192,64,0.04);border:1px solid rgba(240,192,64,0.1);border-left:2px solid var(--gold);border-radius:0 8px 8px 0;font-family:var(--body);font-size:12px;color:var(--text2);line-height:1.6;font-style:italic;}
+
+/* NEXT TRANSITION */
+.next-transition{align-self:stretch;display:none;align-items:center;justify-content:center;gap:12px;padding:16px;font-family:var(--mono);font-size:9px;color:var(--text2);letter-spacing:0.16em;text-transform:uppercase;}
+.next-transition.visible{display:flex;}
+.next-dots{display:flex;gap:6px;}
+.next-dot{width:6px;height:6px;border-radius:50%;background:var(--text3);animation:dotPulse 1.2s ease-in-out infinite;}
+.next-dot:nth-child(2){animation-delay:0.2s;}
+.next-dot:nth-child(3){animation-delay:0.4s;}
+@keyframes dotPulse{0%,100%{opacity:0.3;}50%{opacity:1;background:var(--gold);}}
+
+/* ══ REPORT SCREEN ══ */
+#reportScreen{display:none;flex-direction:column;align-items:center;width:100%;max-width:700px;padding-top:20px;}
+.report-header{text-align:center;margin-bottom:40px;}
+.report-eyebrow{font-family:var(--mono);font-size:9px;color:var(--gold);letter-spacing:0.28em;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:10px;}
+.report-title{font-family:var(--display);font-size:clamp(22px,3vw,38px);font-weight:900;color:var(--cream);letter-spacing:-0.02em;line-height:1.1;margin-bottom:8px;}
+.report-title .hl{color:var(--gold);text-shadow:0 0 20px var(--gg);}
+.report-sub{font-family:var(--body);font-size:13px;color:var(--text2);}
+
+/* OVERALL SCORE RING */
+.overall-wrap{display:flex;flex-direction:column;align-items:center;margin-bottom:36px;position:relative;}
+.overall-svg{transform:rotate(-90deg);}
+.overall-track{fill:none;stroke:rgba(255,255,255,0.05);stroke-width:6;}
+.overall-arc{fill:none;stroke:var(--gold);stroke-width:6;stroke-linecap:round;transition:stroke-dashoffset 2s cubic-bezier(0.16,1,0.3,1);}
+.overall-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;}
+.overall-num{font-family:var(--display);font-size:42px;font-weight:900;color:var(--cream);line-height:1;}
+.overall-denom{font-family:var(--mono);font-size:10px;color:var(--text2);margin-top:2px;}
+.overall-label{font-family:var(--mono);font-size:9px;color:var(--gold);letter-spacing:0.2em;text-transform:uppercase;margin-top:12px;}
+
+/* TRAIT BREAKDOWN */
+.traits-card{align-self:stretch;background:rgba(8,7,14,0.95);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:22px 24px;margin-bottom:20px;}
+.traits-title{font-family:var(--mono);font-size:8px;color:var(--text2);letter-spacing:0.18em;text-transform:uppercase;margin-bottom:16px;}
+.trait-row{display:flex;align-items:center;gap:14px;margin-bottom:14px;}
+.trait-row:last-child{margin-bottom:0;}
+.trait-name{font-family:var(--mono);font-size:9px;letter-spacing:0.1em;text-transform:uppercase;width:110px;flex-shrink:0;}
+.trait-name.clarity{color:var(--clarity);}
+.trait-name.thoughtfulness{color:var(--thoughtfulness);}
+.trait-name.honesty{color:var(--honesty);}
+.trait-name.adaptability{color:var(--adaptability);}
+.trait-bar-wrap{flex:1;height:6px;background:rgba(255,255,255,0.05);border-radius:3px;overflow:hidden;}
+.trait-bar-fill{height:100%;border-radius:3px;width:0%;transition:width 1.5s cubic-bezier(0.16,1,0.3,1);}
+.trait-bar-fill.clarity{background:var(--clarity);box-shadow:0 0 8px var(--clarity);}
+.trait-bar-fill.thoughtfulness{background:var(--thoughtfulness);box-shadow:0 0 8px var(--thoughtfulness);}
+.trait-bar-fill.honesty{background:var(--honesty);box-shadow:0 0 8px var(--honesty);}
+.trait-bar-fill.adaptability{background:var(--adaptability);box-shadow:0 0 8px var(--adaptability);}
+.trait-score{font-family:var(--display);font-size:16px;font-weight:700;color:var(--cream);width:32px;text-align:right;flex-shrink:0;}
+
+/* HIGHLIGHTS */
+.highlights-row{align-self:stretch;display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}
+@media(max-width:480px){.highlights-row{grid-template-columns:1fr;}}
+.highlight-card{background:rgba(8,7,14,0.95);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:18px 20px;}
+.highlight-label{font-family:var(--mono);font-size:7px;letter-spacing:0.18em;text-transform:uppercase;margin-bottom:6px;}
+.highlight-label.strong{color:var(--green);}
+.highlight-label.weak{color:var(--red);}
+.highlight-val{font-family:var(--display);font-size:15px;font-weight:700;color:var(--cream);text-transform:capitalize;}
+
+/* ANSWERS BREAKDOWN */
+.answers-card{align-self:stretch;background:rgba(8,7,14,0.95);border:1px solid rgba(255,255,255,0.07);border-radius:14px;padding:22px 24px;margin-bottom:28px;}
+.answers-title{font-family:var(--mono);font-size:8px;color:var(--text2);letter-spacing:0.18em;text-transform:uppercase;margin-bottom:16px;}
+.answer-row{border-bottom:1px solid rgba(255,255,255,0.04);padding-bottom:14px;margin-bottom:14px;}
+.answer-row:last-child{border-bottom:none;padding-bottom:0;margin-bottom:0;}
+.answer-q-num{font-family:var(--mono);font-size:8px;color:var(--gold);letter-spacing:0.14em;margin-bottom:4px;}
+.answer-q-text{font-family:var(--body);font-size:13px;color:var(--cream);margin-bottom:6px;line-height:1.5;}
+.answer-transcript{font-family:var(--body);font-size:12px;color:var(--text2);font-style:italic;margin-bottom:8px;line-height:1.55;padding-left:10px;border-left:2px solid rgba(255,255,255,0.07);}
+.answer-mini-scores{display:flex;gap:10px;flex-wrap:wrap;}
+.mini-score{font-family:var(--mono);font-size:8px;letter-spacing:0.08em;}
+.mini-score.clarity{color:var(--clarity);}
+.mini-score.thoughtfulness{color:var(--thoughtfulness);}
+.mini-score.honesty{color:var(--honesty);}
+.mini-score.adaptability{color:var(--adaptability);}
+
+/* RESTART */
+.restart-btn{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:0.24em;text-transform:uppercase;color:#000;border:none;border-radius:12px;cursor:none;padding:18px 48px;background:linear-gradient(180deg,#FFE566 0%,#FFC83D 46%,#F0A800 100%);box-shadow:inset 0 1px 0 rgba(255,255,215,0.7),0 0 30px rgba(255,200,50,0.6),0 6px 0 rgba(95,50,0,0.9);transition:transform 0.18s,box-shadow 0.2s;margin-bottom:40px;position:relative;overflow:hidden;}
+.restart-btn:hover{transform:translateY(-3px);box-shadow:inset 0 1px 0 rgba(255,255,215,0.8),0 0 50px rgba(255,220,50,0.9),0 8px 0 rgba(95,50,0,0.9);}
+.restart-btn .rsh{position:absolute;top:0;left:-100%;width:45%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent);animation:shimRun 2.5s 1s ease-in-out infinite;}
+@keyframes shimRun{0%{left:-100%;}100%{left:200%;}}
+
+/* ELINE */
+.eline{width:20px;height:1px;background:currentColor;opacity:0.6;}
+
+@keyframes fu{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+</style>
+</head>
+<body>
+
+<div id="cur"></div>
+<div id="crng">
+  <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+    <circle cx="18" cy="18" r="16" stroke="rgba(255,51,51,0.18)" stroke-width="0.6" stroke-dasharray="2 5"/>
+    <circle cx="18" cy="2" r="2" fill="rgba(255,51,51,0.7)"/>
+  </svg>
+</div>
+
+<div class="vignette"></div>
+<div class="blood-glow" id="bloodGlow"></div>
+<canvas id="bgCanvas"></canvas>
+
+<nav>
+  <div class="nav-logo">VOXFORGE</div>
+  <div class="nav-session-info">
+    <div class="nav-pill gold" id="navPersona">—</div>
+    <div class="nav-pill red" id="navLevel">—</div>
+    <div class="nav-pill" id="navLang">—</div>
+  </div>
+</nav>
+
+<main>
+
+  <!-- LOADING -->
+  <div id="loadingScreen">
+    <div class="load-orb">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(240,192,64,0.85)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"/>
+        <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"/>
+      </svg>
+    </div>
+    <div class="load-status" id="loadStatus">Initialising session...</div>
+    <div class="load-bar-wrap"><div class="load-bar" id="loadBar"></div></div>
+  </div>
+
+  <!-- SESSION -->
+  <div id="sessionScreen">
+
+    <div class="q-counter">
+      <span>Question</span>
+      <span class="q-counter-num" id="qNum">1</span>
+      <span class="q-counter-total" id="qTotal">/ 10</span>
+    </div>
+
+    <div class="persona-strip">
+      <span class="persona-name" id="personaStrip">—</span>
+      <span class="persona-level high" id="levelStrip">HIGH PRESSURE</span>
+    </div>
+
+    <!-- TIMER -->
+    <div class="timer-wrap" style="margin-bottom:28px;">
+      <svg class="timer-svg" width="130" height="130" viewBox="0 0 130 130">
+        <circle class="timer-track" cx="65" cy="65" r="58"/>
+        <circle class="timer-arc" id="timerArc" cx="65" cy="65" r="58"
+          stroke="var(--gold)"
+          stroke-dasharray="364.4"
+          stroke-dashoffset="0"/>
+      </svg>
+      <div class="timer-num" id="timerNum">45</div>
+      <div class="timer-label">seconds</div>
+    </div>
+
+    <!-- QUESTION -->
+    <div class="question-card" id="questionCard">
+      <div class="question-eyebrow"><div class="q-dot"></div>Question</div>
+      <div class="question-text" id="questionText">Loading your question...</div>
+    </div>
+
+    <!-- MIC -->
+    <div class="mic-area" id="micArea">
+      <div class="mic-header">
+        <div class="mic-indicator" id="micIndicator"></div>
+        <div class="mic-label" id="micLabel">Waiting...</div>
+      </div>
+      <div class="mic-waveform" id="waveform"></div>
+      <div class="transcript-text empty" id="transcriptText">Your answer will appear here as you speak...</div>
+    </div>
+
+    <!-- LIVE SCORES -->
+    <div class="scores-area" id="scoresArea">
+      <div class="scores-header"><span class="eline"></span>Live Score</div>
+      <div class="scores-grid">
+        <div class="score-item">
+          <div class="score-trait clarity">Clarity</div>
+          <div class="score-bar-wrap"><div class="score-bar clarity" id="barClarity"></div></div>
+          <div class="score-val" id="valClarity">—<span>/10</span></div>
+        </div>
+        <div class="score-item">
+          <div class="score-trait thoughtfulness">Thoughtfulness</div>
+          <div class="score-bar-wrap"><div class="score-bar thoughtfulness" id="barThought"></div></div>
+          <div class="score-val" id="valThought">—<span>/10</span></div>
+        </div>
+        <div class="score-item">
+          <div class="score-trait honesty">Honesty</div>
+          <div class="score-bar-wrap"><div class="score-bar honesty" id="barHonesty"></div></div>
+          <div class="score-val" id="valHonesty">—<span>/10</span></div>
+        </div>
+        <div class="score-item">
+          <div class="score-trait adaptability">Adaptability</div>
+          <div class="score-bar-wrap"><div class="score-bar adaptability" id="barAdapt"></div></div>
+          <div class="score-val" id="valAdapt">—<span>/10</span></div>
+        </div>
+        <div class="score-feedback" id="scoreFeedback"></div>
+      </div>
+    </div>
+
+    <!-- NEXT TRANSITION -->
+    <div class="next-transition" id="nextTransition">
+      <div class="next-dots">
+        <div class="next-dot"></div><div class="next-dot"></div><div class="next-dot"></div>
+      </div>
+      Next question loading...
+    </div>
+
+  </div><!-- /sessionScreen -->
+
+  <!-- REPORT -->
+  <div id="reportScreen">
+
+    <div class="report-header">
+      <div class="report-eyebrow"><span class="eline"></span>Session Complete<span class="eline"></span></div>
+      <h1 class="report-title">Your <span class="hl">Results</span></h1>
+      <p class="report-sub" id="reportSub">—</p>
+    </div>
+
+    <!-- OVERALL RING -->
+    <div class="overall-wrap">
+      <svg class="overall-svg" width="160" height="160" viewBox="0 0 160 160">
+        <circle class="overall-track" cx="80" cy="80" r="70"/>
+        <circle class="overall-arc" id="overallArc" cx="80" cy="80" r="70"
+          stroke-dasharray="439.8"
+          stroke-dashoffset="439.8"/>
+      </svg>
+      <div class="overall-center">
+        <div class="overall-num" id="overallNum">0</div>
+        <div class="overall-denom">/10</div>
+      </div>
+      <div class="overall-label">Overall Score</div>
+    </div>
+
+    <!-- TRAIT BARS -->
+    <div class="traits-card" style="align-self:stretch;">
+      <div class="traits-title">Trait Breakdown</div>
+      <div class="trait-row">
+        <div class="trait-name clarity">Clarity</div>
+        <div class="trait-bar-wrap"><div class="trait-bar-fill clarity" id="rBarClarity"></div></div>
+        <div class="trait-score" id="rValClarity">0</div>
+      </div>
+      <div class="trait-row">
+        <div class="trait-name thoughtfulness">Thoughtfulness</div>
+        <div class="trait-bar-wrap"><div class="trait-bar-fill thoughtfulness" id="rBarThought"></div></div>
+        <div class="trait-score" id="rValThought">0</div>
+      </div>
+      <div class="trait-row">
+        <div class="trait-name honesty">Honesty</div>
+        <div class="trait-bar-wrap"><div class="trait-bar-fill honesty" id="rBarHonesty"></div></div>
+        <div class="trait-score" id="rValHonesty">0</div>
+      </div>
+      <div class="trait-row">
+        <div class="trait-name adaptability">Adaptability</div>
+        <div class="trait-bar-wrap"><div class="trait-bar-fill adaptability" id="rBarAdapt"></div></div>
+        <div class="trait-score" id="rValAdapt">0</div>
+      </div>
+    </div>
+
+    <!-- HIGHLIGHTS -->
+    <div class="highlights-row" style="align-self:stretch;">
+      <div class="highlight-card">
+        <div class="highlight-label strong">Strongest Trait</div>
+        <div class="highlight-val" id="strongestTrait">—</div>
+      </div>
+      <div class="highlight-card">
+        <div class="highlight-label weak">Needs Work</div>
+        <div class="highlight-val" id="weakestTrait">—</div>
+      </div>
+    </div>
+
+    <!-- ANSWERS BREAKDOWN -->
+    <div class="answers-card" style="align-self:stretch;">
+      <div class="answers-title">Answer Breakdown</div>
+      <div id="answersBreakdown"></div>
+    </div>
+
+    <button class="restart-btn" onclick="window.location.href='index.html'">
+      <span class="rsh"></span>
+      Start New Session →
+    </button>
+
+  </div><!-- /reportScreen -->
+
+</main>
+
+<script src="config.js"></script>
+<script src="session.js"></script>
+<script>
+/* ── CURSOR ── */
+const cur=document.getElementById('cur'),crng=document.getElementById('crng');
+let mx=0,my=0,rx=0,ry=0;
+document.addEventListener('mousemove',e=>{mx=e.clientX;my=e.clientY;cur.style.left=mx+'px';cur.style.top=my+'px';});
+(function loop(){rx+=(mx-rx)*0.07;ry+=(my-ry)*0.07;crng.style.left=rx+'px';crng.style.top=ry+'px';requestAnimationFrame(loop);})();
+document.querySelectorAll('button').forEach(el=>{el.addEventListener('mouseenter',()=>cur.classList.add('h'));el.addEventListener('mouseleave',()=>cur.classList.remove('h'));});
+
+/* ── PARTICLES ── */
+const bgC=document.getElementById('bgCanvas'),bgX=bgC.getContext('2d');
+function rsC(){bgC.width=innerWidth;bgC.height=innerHeight;}rsC();window.addEventListener('resize',rsC);
+const ps=[];
+function mkP(){return{x:Math.random()*bgC.width,y:bgC.height+10,vx:(Math.random()-.5)*.2,vy:-(Math.random()*.4+.1),s:Math.random()*1.2+.2,op:Math.random()*.3+.05,c:Math.random()>.7?'#ff3333':'#f0c040',life:1,decay:Math.random()*.0004+.0002};}
+for(let i=0;i<30;i++){const p=mkP();p.y=Math.random()*bgC.height;ps.push(p);}
+(function animP(){bgX.clearRect(0,0,bgC.width,bgC.height);if(Math.random()>.95)ps.push(mkP());for(let i=ps.length-1;i>=0;i--){const p=ps[i];p.x+=p.vx;p.y+=p.vy;p.life-=p.decay;if(p.life<=0||p.y<-10){ps.splice(i,1);continue;}bgX.save();bgX.globalAlpha=p.op*p.life;bgX.fillStyle=p.c;bgX.shadowColor=p.c;bgX.shadowBlur=6;bgX.beginPath();bgX.arc(p.x,p.y,p.s,0,Math.PI*2);bgX.fill();bgX.restore();}requestAnimationFrame(animP);})();
+
+/* ── WAVEFORM ── */
+const wf=document.getElementById('waveform');
+for(let i=0;i<18;i++){const b=document.createElement('div');b.className='wave-bar';b.style.setProperty('--d',(0.4+Math.random()*0.8)+'s');b.style.setProperty('--h',(6+Math.floor(Math.random()*14))+'px');b.style.height='4px';wf.appendChild(b);}
+
+/* ── TIMER ARC ── */
+const CIRC=364.4;
+function setTimerArc(val,max){
+  const pct=val/max;
+  const offset=CIRC*(1-pct);
+  const arc=document.getElementById('timerArc');
+  arc.style.strokeDashoffset=offset;
+  const num=document.getElementById('timerNum');
+  num.textContent=val;
+  const bg=document.getElementById('bloodGlow');
+  if(pct<=0.2){
+    arc.style.stroke='var(--red)';
+    num.className='timer-num danger';
+    bg.className='blood-glow danger';
+  } else if(pct<=0.4){
+    arc.style.stroke='var(--amber)';
+    num.className='timer-num warn';
+    bg.className='blood-glow warn';
+  } else {
+    arc.style.stroke='var(--gold)';
+    num.className='timer-num';
+    bg.className='blood-glow';
+  }
+}
+
+/* ── LOAD BAR FAKE PROGRESS ── */
+let loadPct=0;
+const loadInterval=setInterval(()=>{
+  loadPct=Math.min(loadPct+(Math.random()*8),88);
+  document.getElementById('loadBar').style.width=loadPct+'%';
+},300);
+
+/* ── POPULATE NAV FROM CONFIG ── */
+function populateNav(config){
+  if(!config)return;
+  document.getElementById('navPersona').textContent=config.personaName||config.role||'—';
+  document.getElementById('navLevel').textContent=(config.level||'').toUpperCase();
+  document.getElementById('navLang').textContent=(config.langName||config.langCode||'—');
+  const strip=document.getElementById('levelStrip');
+  const lvlMap={beginner:'LOW PRESSURE',intermediate:'MEDIUM PRESSURE',expert:'HIGH PRESSURE'};
+  strip.textContent=lvlMap[config.level]||'PRESSURE';
+  const classMap={beginner:'persona-level low',intermediate:'persona-level medium',expert:'persona-level high'};
+  strip.className=classMap[config.level]||'persona-level high';
+  document.getElementById('personaStrip').textContent=config.personaName||'—';
+}
+
+/* ── SESSION CALLBACKS ── */
+function showLoading(msg){
+  document.getElementById('loadStatus').textContent=msg;
+}
+
+function showQuestion(q, idx, total){
+  /* First question — swap screens */
+  if(idx===0){
+    clearInterval(loadInterval);
+    document.getElementById('loadBar').style.width='100%';
+    setTimeout(()=>{
+      document.getElementById('loadingScreen').style.display='none';
+      const ss=document.getElementById('sessionScreen');
+      ss.style.display='flex';
+      ss.style.opacity='0';
+      ss.style.animation='fu 0.6s cubic-bezier(0.16,1,0.3,1) forwards';
+    },400);
+  }
+
+  /* Reset UI for new question */
+  document.getElementById('qNum').textContent=idx+1;
+  document.getElementById('qTotal').textContent='/ '+total;
+  document.getElementById('questionText').textContent=q.text;
+  document.getElementById('transcriptText').textContent='Your answer will appear here as you speak...';
+  document.getElementById('transcriptText').className='transcript-text empty';
+  document.getElementById('micIndicator').className='mic-indicator on';
+  document.getElementById('micLabel').textContent='Listening...';
+  document.getElementById('micArea').className='mic-area listening';
+  document.getElementById('micArea').querySelector('.locked-badge')?.remove();
+  document.getElementById('scoresArea').className='scores-area';
+  document.getElementById('nextTransition').className='next-transition';
+
+  /* Reset score display */
+  ['Clarity','Thought','Honesty','Adapt'].forEach(k=>{
+    document.getElementById('val'+k).innerHTML='—<span>/10</span>';
+    document.getElementById('bar'+k).style.width='0%';
+  });
+  document.getElementById('scoreFeedback').textContent='';
+
+  /* Set timer arc */
+  const cfg=JSON.parse(sessionStorage.getItem('vf_config')||'{}');
+  setTimerArc(cfg.timer||45,cfg.timer||45);
+}
+
+function updateTranscript(text){
+  const el=document.getElementById('transcriptText');
+  if(text){
+    el.className='transcript-text';
+    el.textContent=text;
+  }
+}
+
+function onTimerTick(secs){
+  const cfg=JSON.parse(sessionStorage.getItem('vf_config')||'{}');
+  setTimerArc(secs,cfg.timer||45);
+}
+
+function onTimerEnd(){
+  document.getElementById('timerNum').textContent='0';
+}
+
+function onAnswerLocked(ans, idx){
+  /* Lock mic UI */
+  document.getElementById('micIndicator').className='mic-indicator done';
+  document.getElementById('micLabel').textContent='Answer recorded';
+  document.getElementById('micArea').className='mic-area locked';
+  const badge=document.createElement('div');
+  badge.className='locked-badge';
+  badge.textContent='✓ Locked';
+  document.getElementById('micArea').appendChild(badge);
+
+  /* Show final transcript */
+  const el=document.getElementById('transcriptText');
+  el.className='transcript-text';
+  el.textContent=ans.transcript;
+
+  /* Show next transition */
+  document.getElementById('nextTransition').className='next-transition visible';
+
+  /* Reset blood glow */
+  document.getElementById('bloodGlow').className='blood-glow';
+}
+
+function onScoreReady(ans, idx){
+  if(!ans.scores)return;
+  const s=ans.scores;
+
+  document.getElementById('scoresArea').className='scores-area visible';
+  document.getElementById('nextTransition').className='next-transition';
+
+  /* Animate bars */
+  setTimeout(()=>{
+    document.getElementById('barClarity').style.width=(s.clarity*10)+'%';
+    document.getElementById('barThought').style.width=(s.thoughtfulness*10)+'%';
+    document.getElementById('barHonesty').style.width=(s.honesty*10)+'%';
+    document.getElementById('barAdapt').style.width=(s.adaptability*10)+'%';
+  },100);
+
+  document.getElementById('valClarity').innerHTML=s.clarity+'<span>/10</span>';
+  document.getElementById('valThought').innerHTML=s.thoughtfulness+'<span>/10</span>';
+  document.getElementById('valHonesty').innerHTML=s.honesty+'<span>/10</span>';
+  document.getElementById('valAdapt').innerHTML=s.adaptability+'<span>/10</span>';
+  document.getElementById('scoreFeedback').textContent=s.feedback||'';
+}
+
+/* ── RENDER REPORT ── */
+function renderReport(results){
+  document.getElementById('sessionScreen').style.display='none';
+  const rs=document.getElementById('reportScreen');
+  rs.style.display='flex';
+  rs.style.opacity='0';
+  rs.style.animation='fu 0.8s cubic-bezier(0.16,1,0.3,1) forwards';
+
+  const t=results.traitAverages;
+  const cfg=results.config;
+
+  document.getElementById('reportSub').textContent=
+    results.answeredCount+' of '+results.totalQuestions+' questions answered · '+
+    cfg.personaName+' · '+cfg.langName;
+
+  /* Animate overall ring */
+  const overall=t.overall;
+  const OCIRC=439.8;
+  setTimeout(()=>{
+    const offset=OCIRC*(1-(overall/10));
+    document.getElementById('overallArc').style.strokeDashoffset=offset;
+    animateNum('overallNum',0,overall,1500);
+  },400);
+
+  /* Trait bars */
+  setTimeout(()=>{
+    [
+      ['rBarClarity','rValClarity',t.clarity],
+      ['rBarThought','rValThought',t.thoughtfulness],
+      ['rBarHonesty','rValHonesty',t.honesty],
+      ['rBarAdapt','rValAdapt',t.adaptability],
+    ].forEach(([barId,valId,val])=>{
+      document.getElementById(barId).style.width=(val*10)+'%';
+      document.getElementById(valId).textContent=val;
+    });
+  },600);
+
+  /* Highlights */
+  document.getElementById('strongestTrait').textContent=results.strongest;
+  document.getElementById('weakestTrait').textContent=results.weakest;
+
+  /* Answers breakdown */
+  const container=document.getElementById('answersBreakdown');
+  container.innerHTML=results.answers.map((a,i)=>{
+    const s=a.scores||{clarity:0,thoughtfulness:0,honesty:0,adaptability:0};
+    return `
+      <div class="answer-row">
+        <div class="answer-q-num">Q${i+1}</div>
+        <div class="answer-q-text">${a.question}</div>
+        <div class="answer-transcript">${a.transcript}</div>
+        <div class="answer-mini-scores">
+          <span class="mini-score clarity">Clarity ${s.clarity}/10</span>
+          <span class="mini-score thoughtfulness">Thought ${s.thoughtfulness}/10</span>
+          <span class="mini-score honesty">Honesty ${s.honesty}/10</span>
+          <span class="mini-score adaptability">Adapt ${s.adaptability}/10</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function animateNum(id,from,to,dur){
+  const el=document.getElementById(id);
+  const start=performance.now();
+  function step(now){
+    const p=Math.min((now-start)/dur,1);
+    const ease=1-Math.pow(1-p,3);
+    el.textContent=+(from+(to-from)*ease).toFixed(1);
+    if(p<1)requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+/* ── INIT ── */
+const cfg=JSON.parse(sessionStorage.getItem('vf_config')||'{}');
+populateNav(cfg);
+
+VoxForgeSession.init({
+  status:        (msg)        => showLoading(msg),
+  questionStart: (q,i,total)  => showQuestion(q,i,total),
+  transcript:    (text)       => updateTranscript(text),
+  timerTick:     (secs)       => onTimerTick(secs),
+  timerEnd:      ()           => onTimerEnd(),
+  answerLocked:  (ans,i)      => onAnswerLocked(ans,i),
+  scoreReady:    (ans,i)      => onScoreReady(ans,i),
+  report:        (results)    => renderReport(results),
+  error:         (msg)        => { document.getElementById('loadStatus').textContent='Error: '+msg; },
+});
+</script>
+</body>
+</html>
